@@ -11,30 +11,30 @@ const progScale = 1;
 //Simulation Size Factor
 const simScaling = 1*progScale;
 //Simulation Speed Factor
-const simSpeed = 0.5*progScale;
+const simSpeed = 1*progScale;
 //Number of Boid Types
 const numTypes = 3;
 
 //Auto adjusts number of boids and their range to better fit scaling.
 let numBoids = 1;
-const visualRange = 75//+(numBoids*0.15);
-const x_margin = 200//window.innerWidth*0.15;//Margin from sides of screen
-const y_margin = 120//window.innerHeight*0.2;//Mergin from top/bottom of screen
+const x_margin = window.innerWidth*0.05;//200//Margin from sides of screen
+const y_margin = window.innerHeight*0.1//120;//Mergin from top/bottom of screen
 
 //What percentage of the tail should persist | 0->100%
 const tailPortion = 10;
 const DRAW_TRAIL = true;
 
-//Normal Boid Traversal
-const centeringFactor = 0.005*simSpeed; // adjust velocity by this %
+//Default Boid Traversal Values
+const visualRange = 75//+(numBoids*0.15);
+const centeringFactor = 0.0025*simSpeed; // adjust velocity by this %
 const minDistance = 20; // The distance to stay away from other boids
-const avoidFactor = 0.05*simSpeed; // Adjust velocity by this %
-const matchingFactor = 0.05*simSpeed; // Adjust by this % of average velocity
-const speedLimit = 10*simSpeed;//Boid topspeed
-const turnFactor = 1*simSpeed;//Boid turnspeed
+const avoidFactor = 0.025*simSpeed; // Adjust velocity by this %
+const matchingFactor = 0.025*simSpeed; // Adjust by this % of average velocity
+const speedLimit = 5*simSpeed;//Boid topspeed
+const turnFactor = 0.5*simSpeed;//Boid turnspeed
 
 const boidColors = ["#282c34d1","#345258d1","#3f353ea1","#6f4472"]
-const trailColors = ["#1097D132","#03C1E336","#3f354536","#6f447636"]
+const trailColors = ["#1097D132","#03C1E336","#4f455516","#6f447636"]
 const rainbow = {
 	r: 0,
 	g: 0,
@@ -70,9 +70,11 @@ function initBoids() {
     };
   }
 	for(var x = 0; x < boids.length; x+=1){
-		if(x < boids.length*0.75)boids[x].type = 0;
-		else if(x < boids.length*0.99)boids[x].type = 1;
-		else boids[x].type = 2;
+		if(x < boids.length*0.8)boids[x].type = 0;
+		else if(x < boids.length*0.97)boids[x].type = 1;
+		else if(x < boids.length*0.985)boids[x].type = 2;
+		else if(x < boids.length*1.1)boids[x].type = 3;
+		else boids[x].type = 4;
 	}
 }
 
@@ -122,21 +124,41 @@ function shiftRainbow(color){
 }
 
 function boidBehaviour(boid){
-	let centerX = 0;
-	let centerY = 0;
-	let moveX = 0;
-	let moveY = 0;
-	let avgDX = 0;
-	let avgDY = 0;
-	let numNeighbors = 0;
-	let boidDist = 0;
-	let sameType = false;
-	let typeDiff = 0;
+	let centerX = 0, centerY = 0,
+			moveX = 0, moveY = 0,
+			avgDX = 0, avgDY = 0,
+			numNeighbors = 0, boidDist = 0,
+			typeDiff = 0, sameType = false;
+	let typeCntrFctr = centeringFactor,
+			typeMinDist = minDistance,
+			typeAvoidFctr = avoidFactor,
+			typeMtchFctr = matchingFactor,
+			typeSpdLim = speedLimit,
+			typeTurnFctr = turnFactor,
+			typeVisRnge = visualRange;
+	if(boid.type == 0){}//Small schooling fish.
+	else if(boid.type == 1){//Medium rainbow fish.
+		typeSpdLim = typeSpdLim*0.8;
+		//typeMtchFctr = typeMtchFctr*1.5;
+		//typeAvoidFctr = typeAvoidFctr*0.7;
+		//typeVisRnge = typeVisRnge*0.8;
+	}
+	else if(boid.type == 2){//Fugu
+		typeVisRnge = typeVisRnge*0.75;
+		typeSpdLim = typeSpdLim *0.6;
+		typeMtchFctr = typeMtchFctr*0.6;
+	}
+	else if(boid.type == 3){//Dolphins
+		typeMinDist = typeMinDist*2;
+		typeVisRnge = typeVisRnge*2;//2 implements notable pod formation
+		typeAvoidFctr = typeAvoidFctr*0.25;
+		typeSpdLim = typeSpdLim*1.4;
+	}
 	for (let otherBoid of boids) {
 		boidDist = distance(boid,otherBoid);
 		sameType = (boid.type == otherBoid.type);
 		typeDiff = otherBoid.type - boid.type;
-		if(boidDist < visualRange){
+		if(boidDist < typeVisRnge){
 	if(sameType){
 				centerX += otherBoid.x;
 				centerY += otherBoid.y;
@@ -145,7 +167,7 @@ function boidBehaviour(boid){
 				numNeighbors += 1;
 		}}
 		if (otherBoid !== boid) {
-			if(boidDist < minDistance){
+			if(boidDist < typeMinDist){
 				if(typeDiff > 0){
 					moveX += (boid.x - otherBoid.x)*(typeDiff*typeDiff*0.5+0.35);
 					moveY += (boid.y - otherBoid.y)*(typeDiff*typeDiff*0.5+0.35);
@@ -163,29 +185,29 @@ function boidBehaviour(boid){
 		avgDX = avgDX / numNeighbors;
 		avgDY = avgDY / numNeighbors;
 
-		boid.dx += ((avgDX - boid.dx) * matchingFactor) + ((centerX - boid.x) * centeringFactor);
-		boid.dy += ((avgDY - boid.dy) * matchingFactor) + ((centerY - boid.y) * centeringFactor);
+		boid.dx += ((avgDX - boid.dx) * typeMtchFctr) + ((centerX - boid.x) * typeCntrFctr);
+		boid.dy += ((avgDY - boid.dy) * typeMtchFctr) + ((centerY - boid.y) * typeCntrFctr);
 	}
-	boid.dx += moveX * avoidFactor;
-	boid.dy += moveY * avoidFactor;
+	boid.dx += moveX * typeAvoidFctr;
+	boid.dy += moveY * typeAvoidFctr;
 	//Speed Limiting
 	const speed = Math.sqrt(boid.dx * boid.dx + boid.dy * boid.dy);
-	if (speed > speedLimit/((boid.type+2)/2)) {
-		boid.dx = (boid.dx / speed) * speedLimit;
-		boid.dy = (boid.dy / speed) * speedLimit;
+	if (speed > typeSpdLim/((boid.type+2)/2)) {
+		boid.dx = (boid.dx / speed) * typeSpdLim;
+		boid.dy = (boid.dy / speed) * typeSpdLim;
 	}
 	//Bound Constraints
 	if (boid.x < x_margin) {
-		boid.dx += turnFactor;
+		boid.dx += typeTurnFctr;
 	}
 	if (boid.x > width - x_margin) {
-		boid.dx -= turnFactor;
+		boid.dx -= typeTurnFctr;
 	}
 	if (boid.y < y_margin) {
-		boid.dy += turnFactor;
+		boid.dy += typeTurnFctr;
 	}
 	if (boid.y > height - y_margin) {
-		boid.dy -= turnFactor;
+		boid.dy -= typeTurnFctr;
 	}
 }
 
@@ -303,7 +325,56 @@ function drawBoid(ctx, boid) {
 		}
   }
   else if(boid.type == 2){
-		if(boid.variant < 2){
+		if(boid.variant < 4){//Fugu
+			ctx.fillStyle = "#7C6217b1"
+			ctx.lineTo(boid.x+8, boid.y);//Q1
+			ctx.lineTo(boid.x+9, boid.y+1);//Spike
+	    ctx.lineTo(boid.x+7, boid.y+3);
+	    ctx.lineTo(boid.x+8, boid.y+4);//Spike
+	    ctx.lineTo(boid.x+6, boid.y+5);
+	    ctx.lineTo(boid.x+5, boid.y+6);
+	    ctx.lineTo(boid.x+4, boid.y+8);//Spike
+	    ctx.lineTo(boid.x+3, boid.y+7);
+	    ctx.lineTo(boid.x+1, boid.y+9);//Spike
+	    ctx.lineTo(boid.x, boid.y+8);//Q2
+			ctx.lineTo(boid.x-1, boid.y+9);//Spike
+	    ctx.lineTo(boid.x-3, boid.y+7);
+			ctx.lineTo(boid.x-4, boid.y+8);//Spike
+	    ctx.lineTo(boid.x-5, boid.y+6);
+	    ctx.lineTo(boid.x-6, boid.y+5);
+			ctx.lineTo(boid.x-8, boid.y+4);//Spike
+	    ctx.lineTo(boid.x-7, boid.y+4);
+	    ctx.lineTo(boid.x-9, boid.y+3);//Tail
+	    ctx.lineTo(boid.x-10, boid.y+2);
+	    ctx.lineTo(boid.x-14, boid.y+3);
+	    ctx.lineTo(boid.x-11, boid.y);
+	    ctx.lineTo(boid.x-14, boid.y-3);
+	    ctx.lineTo(boid.x-10, boid.y-2);
+	    ctx.lineTo(boid.x-9, boid.y-3);//Q3
+	    ctx.lineTo(boid.x-7, boid.y-4);
+			ctx.lineTo(boid.x-8, boid.y-4);//Spike
+	    ctx.lineTo(boid.x-6, boid.y-5);
+	    ctx.lineTo(boid.x-5, boid.y-6);
+			ctx.lineTo(boid.x-4, boid.y-8);//Spike
+	    ctx.lineTo(boid.x-3, boid.y-7);
+			ctx.lineTo(boid.x-4, boid.y-9);//Spike
+	    ctx.lineTo(boid.x, boid.y-8);//Q4
+			ctx.lineTo(boid.x+1, boid.y-9);//Spike
+	    ctx.lineTo(boid.x+3, boid.y-7);
+			ctx.lineTo(boid.x+4, boid.y-8);//Spike
+	    ctx.lineTo(boid.x+5, boid.y-6);
+	    ctx.lineTo(boid.x+6, boid.y-5);
+			ctx.lineTo(boid.x+9, boid.y-4);//Spike
+	    ctx.lineTo(boid.x+7, boid.y-3);
+			ctx.lineTo(boid.x+9, boid.y-1);//Spike
+	    ctx.lineTo(boid.x+8, boid.y);
+		}
+		else if(boid.variant < 4){
+
+		}
+  }
+  else if(boid.type == 3){
+		if(boid.variant < 2){//Adult Dolphin
 			ctx.fillStyle = "#5F676EAa";
 			ctx.lineTo(boid.x, boid.y-8);//Left Fin
 			ctx.lineTo(boid.x-2, boid.y-10);
@@ -359,7 +430,8 @@ function drawBoid(ctx, boid) {
 			ctx.lineTo(boid.x-20, boid.y-4);
 			ctx.lineTo(boid.x-10, boid.y-7);
 			ctx.lineTo(boid.x, boid.y-8);
-		}else if (boid.variant > 1){
+		}
+		else if(boid.variant > 1){//Baby Dolphin
 			ctx.fillStyle = "#646D75Ba";
 			ctx.lineTo(boid.x, boid.y-7);//Left Fin
 			ctx.lineTo(boid.x-1, boid.y-9);
@@ -416,28 +488,15 @@ function drawBoid(ctx, boid) {
 			ctx.lineTo(boid.x-5, boid.y-6);
 			ctx.lineTo(boid.x-1, boid.y-7);
 		}
-
-  }
-  else if(boid.type == 3){
-		ctx.lineTo(boid.x - 35, boid.y + 10);
-		ctx.lineTo(boid.x - 35, boid.y - 10);
-		ctx.lineTo(boid.x, boid.y);
-		ctx.fill();
-		ctx.fillStyle = "#633F15b1"
-		ctx.lineTo(boid.x + 10, boid.y);
-		ctx.lineTo(boid.x - 20, boid.y + 10);
-		ctx.lineTo(boid.x - 20, boid.y - 10);
-		ctx.lineTo(boid.x+10, boid.y);
   }
   else{
 		ctx.fillStyle = "#aaaadaca"
 		//ctx.fillStyle = "rgb("+rainbow.r+","+rainbow.g+","+rainbow.b+",255)";
 		//console.log("rgb("+bgTest[0]+","+bgTest[1]+","+bgTest[2]+")");
-    ctx.lineTo(boid.x + 10, boid.y);
-    ctx.lineTo(boid.x, boid.y + 5);
-    ctx.lineTo(boid.x - 14, boid.y);
-		ctx.lineTo(boid.x, boid.y - 5);
-		ctx.lineTo(boid.x + 10, boid.y);
+		ctx.lineTo(boid.x + 14, boid.y);
+		ctx.lineTo(boid.x - 20, boid.y + 10);
+		ctx.lineTo(boid.x - 20, boid.y - 10);
+		ctx.lineTo(boid.x+10, boid.y);
   }
   ctx.fill();
   ctx.setTransform(1/simScaling, 0, 0, 1/simScaling, 0, 0);
