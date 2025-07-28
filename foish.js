@@ -13,7 +13,7 @@ const simScaling = 1*progScale;
 //Simulation Speed Factor
 const simSpeed = 1*progScale;
 //Number of Boid Types
-const numTypes = 3;
+const numTypes = 5;
 
 //Auto adjusts number of boids and their range to better fit scaling.
 let numBoids = 1;
@@ -70,10 +70,10 @@ function initBoids() {
     };
   }
 	for(var x = 0; x < boids.length; x+=1){
-		if(x < boids.length*0.8)boids[x].type = 0;
-		else if(x < boids.length*0.97)boids[x].type = 1;
-		else if(x < boids.length*0.985)boids[x].type = 2;
-		else if(x < boids.length*1.1)boids[x].type = 3;
+		if(x < boids.length*0.75)boids[x].type = 0;
+		else if(x < boids.length*0.95)boids[x].type = 1;
+		else if(x < boids.length*0.98)boids[x].type = 2;
+		else if(x < boids.length*0.99)boids[x].type = 3;
 		else boids[x].type = 4;
 	}
 }
@@ -154,6 +154,13 @@ function boidBehaviour(boid){
 		typeAvoidFctr = typeAvoidFctr*0.25;
 		typeSpdLim = typeSpdLim*1.4;
 	}
+	else if(boid.type == 4){//Turtles
+		typeVisRnge = typeVisRnge*0.5;
+		typeSpdLim = typeSpdLim*0.3;
+		typeMtchFctr = typeMtchFctr*0.3;
+		typeAvoidFctr = typeAvoidFctr*0.5;
+		typeTurnFctr = typeTurnFctr*0.7;
+	}
 	for (let otherBoid of boids) {
 		boidDist = distance(boid,otherBoid);
 		sameType = (boid.type == otherBoid.type);
@@ -224,12 +231,12 @@ function drawBoid(ctx, boid) {
     ctx.stroke();
   }
 	ctx.lineWidth = 3;
-	  ctx.translate(boid.x, boid.y);
-	  ctx.rotate(angle);
-	  ctx.translate(-boid.x, -boid.y);
-	  ctx.beginPath();
-	  ctx.moveTo(boid.x, boid.y);
-	  ctx.fillStyle = boidColors[boid.type];
+	ctx.translate(boid.x, boid.y);
+	ctx.rotate(angle);
+	ctx.translate(-boid.x, -boid.y);
+	ctx.beginPath();
+	ctx.moveTo(boid.x, boid.y);
+	ctx.fillStyle = boidColors[boid.type];
   if(boid.type == 0){
 		if(boid.variant == 0){
 			ctx.fillStyle = "#68DEE2D1"
@@ -487,6 +494,128 @@ function drawBoid(ctx, boid) {
 			ctx.lineTo(boid.x-15, boid.y-3);
 			ctx.lineTo(boid.x-5, boid.y-6);
 			ctx.lineTo(boid.x-1, boid.y-7);
+		}
+  }
+  else if(boid.type == 4){
+		if(boid.variant < 2){//Sea Turtle
+			ctx.fillStyle = "#2F4A20D1"; // Green sea turtle
+			// Turtle shell (oval shape)
+			ctx.lineTo(boid.x + 12, boid.y);
+			ctx.lineTo(boid.x + 8, boid.y + 6);
+			ctx.lineTo(boid.x + 2, boid.y + 8);
+			ctx.lineTo(boid.x - 4, boid.y + 8);
+			ctx.lineTo(boid.x - 10, boid.y + 6);
+			ctx.lineTo(boid.x - 14, boid.y + 2);
+			ctx.lineTo(boid.x - 16, boid.y);
+			ctx.lineTo(boid.x - 14, boid.y - 2);
+			ctx.lineTo(boid.x - 10, boid.y - 6);
+			ctx.lineTo(boid.x - 4, boid.y - 8);
+			ctx.lineTo(boid.x + 2, boid.y - 8);
+			ctx.lineTo(boid.x + 8, boid.y - 6);
+			ctx.lineTo(boid.x + 12, boid.y);
+			ctx.fill();
+			// Head
+			ctx.fillStyle = "#466E2FD1";
+			ctx.beginPath();
+			ctx.moveTo(boid.x + 10, boid.y);
+			ctx.lineTo(boid.x + 15, boid.y + 3);
+			ctx.lineTo(boid.x + 18, boid.y);
+			ctx.lineTo(boid.x + 15, boid.y - 3);
+			ctx.lineTo(boid.x + 10, boid.y);
+			ctx.fill();
+			// Flippers
+			// Front left flipper
+			ctx.beginPath();
+			ctx.moveTo(boid.x + 6, boid.y + 5);
+			ctx.lineTo(boid.x + 10, boid.y + 6);
+			ctx.lineTo(boid.x + 12, boid.y + 10);
+			ctx.lineTo(boid.x + 6, boid.y + 7);
+			ctx.lineTo(boid.x + 6, boid.y + 5);
+			ctx.fill();
+			// Front right flipper
+			ctx.beginPath();
+			ctx.moveTo(boid.x + 6, boid.y - 5);
+			ctx.lineTo(boid.x + 10, boid.y - 6);
+			ctx.lineTo(boid.x + 12, boid.y - 10);
+			ctx.lineTo(boid.x + 6, boid.y - 7);
+			ctx.lineTo(boid.x + 6, boid.y - 5);
+			ctx.fill();
+			// Back left flipper
+			ctx.beginPath();
+			ctx.moveTo(boid.x - 10, boid.y + 5);
+			ctx.lineTo(boid.x - 12, boid.y + 3);
+			ctx.lineTo(boid.x - 14, boid.y + 10);
+			ctx.lineTo(boid.x - 10, boid.y + 7);
+			ctx.lineTo(boid.x - 10, boid.y + 5);
+			ctx.fill();
+			// Back right flipper
+			ctx.beginPath();
+			ctx.moveTo(boid.x - 10, boid.y - 5);
+			ctx.lineTo(boid.x - 12, boid.y - 3);
+			ctx.lineTo(boid.x - 14, boid.y - 10);
+			ctx.lineTo(boid.x - 10, boid.y - 7);
+			ctx.lineTo(boid.x - 10, boid.y - 5);
+			ctx.fill();
+		}
+		else if(boid.variant >= 2){//Loggerhead Turtle
+			ctx.fillStyle = "#5F4A20D1"; // Brown loggerhead
+			// Turtle shell (oval shape)
+			ctx.lineTo(boid.x + 12, boid.y);
+			ctx.lineTo(boid.x + 8, boid.y + 6);
+			ctx.lineTo(boid.x + 2, boid.y + 8);
+			ctx.lineTo(boid.x - 4, boid.y + 8);
+			ctx.lineTo(boid.x - 10, boid.y + 6);
+			ctx.lineTo(boid.x - 14, boid.y + 2);
+			ctx.lineTo(boid.x - 16, boid.y);
+			ctx.lineTo(boid.x - 14, boid.y - 2);
+			ctx.lineTo(boid.x - 10, boid.y - 6);
+			ctx.lineTo(boid.x - 4, boid.y - 8);
+			ctx.lineTo(boid.x + 2, boid.y - 8);
+			ctx.lineTo(boid.x + 8, boid.y - 6);
+			ctx.lineTo(boid.x + 12, boid.y);
+			ctx.fill();
+			// Head
+			ctx.fillStyle = "#8B4513d1";
+			ctx.beginPath();
+			ctx.moveTo(boid.x + 10, boid.y);
+			ctx.lineTo(boid.x + 15, boid.y + 3);
+			ctx.lineTo(boid.x + 18, boid.y);
+			ctx.lineTo(boid.x + 15, boid.y - 3);
+			ctx.lineTo(boid.x + 10, boid.y);
+			ctx.fill();
+			// Flippers
+			// Front left flipper
+			ctx.beginPath();
+			ctx.moveTo(boid.x + 6, boid.y + 5);
+			ctx.lineTo(boid.x + 10, boid.y + 6);
+			ctx.lineTo(boid.x + 12, boid.y + 10);
+			ctx.lineTo(boid.x + 6, boid.y + 7);
+			ctx.lineTo(boid.x + 6, boid.y + 5);
+			ctx.fill();
+			// Front right flipper
+			ctx.beginPath();
+			ctx.moveTo(boid.x + 6, boid.y - 5);
+			ctx.lineTo(boid.x + 10, boid.y - 6);
+			ctx.lineTo(boid.x + 12, boid.y - 10);
+			ctx.lineTo(boid.x + 6, boid.y - 7);
+			ctx.lineTo(boid.x + 6, boid.y - 5);
+			ctx.fill();
+			// Back left flipper
+			ctx.beginPath();
+			ctx.moveTo(boid.x - 10, boid.y + 5);
+			ctx.lineTo(boid.x - 12, boid.y + 3);
+			ctx.lineTo(boid.x - 14, boid.y + 10);
+			ctx.lineTo(boid.x - 10, boid.y + 7);
+			ctx.lineTo(boid.x - 10, boid.y + 5);
+			ctx.fill();
+			// Back right flipper
+			ctx.beginPath();
+			ctx.moveTo(boid.x - 10, boid.y - 5);
+			ctx.lineTo(boid.x - 12, boid.y - 3);
+			ctx.lineTo(boid.x - 14, boid.y - 10);
+			ctx.lineTo(boid.x - 10, boid.y - 7);
+			ctx.lineTo(boid.x - 10, boid.y - 5);
+			ctx.fill();
 		}
   }
   else{
