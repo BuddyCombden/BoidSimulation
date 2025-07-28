@@ -11,7 +11,9 @@ const progScale = 1;
 //Simulation Size Factor
 const simScaling = 1*progScale;
 //Simulation Speed Factor
-const simSpeed = 1*progScale;
+let simSpeed = 1*progScale;
+//Foish Count Multiplier
+let foishCountMultiplier = 1.0;
 //Number of Boid Types
 const numTypes = 5;
 
@@ -26,12 +28,12 @@ const DRAW_TRAIL = true;
 
 //Default Boid Traversal Values
 const visualRange = 75//+(numBoids*0.15);
-const centeringFactor = 0.0025*simSpeed; // adjust velocity by this %
+const centeringFactor = 0.0025; // adjust velocity by this %
 const minDistance = 20; // The distance to stay away from other boids
-const avoidFactor = 0.025*simSpeed; // Adjust velocity by this %
-const matchingFactor = 0.025*simSpeed; // Adjust by this % of average velocity
-const speedLimit = 5*simSpeed;//Boid topspeed
-const turnFactor = 0.5*simSpeed;//Boid turnspeed
+const avoidFactor = 0.025; // Adjust velocity by this %
+const matchingFactor = 0.025; // Adjust by this % of average velocity
+const speedLimit = 5;//Boid topspeed
+const turnFactor = 0.5;//Boid turnspeed
 
 const boidColors = ["#282c34d1","#345258d1","#3f353ea1","#6f4472"]
 const trailColors = ["#1097D132","#03C1E336","#4f455516","#6f447636"]
@@ -55,7 +57,7 @@ function logStates(){
 }
 
 function initBoids() {
-  numBoids = Math.round((width*height)/(6000*(simScaling/2)));
+  numBoids = Math.round((width*height)/(6000*(simScaling/2)) * foishCountMultiplier);
   console.log("NumBoids: "+numBoids);
   for (var i = 0; i < numBoids; i += 1) {
 		//console.log(numTypes-1-Math.floor((Math.log(boids.length+1)/Math.log(numBoids))/(1-(Math.log(numTypes)/Math.log(6)))));
@@ -158,9 +160,15 @@ function boidBehaviour(boid){
 		typeVisRnge = typeVisRnge*0.5;
 		typeSpdLim = typeSpdLim*0.3;
 		typeMtchFctr = typeMtchFctr*0.3;
-		typeAvoidFctr = typeAvoidFctr*0.5;
+		typeAvoidFctr = typeAvoidFctr*1;
 		typeTurnFctr = typeTurnFctr*0.7;
 	}
+
+	typeSpdLim = typeSpdLim*simSpeed;
+	typeTurnFctr = typeTurnFctr*simSpeed;
+	typeMtchFctr = typeMtchFctr*simSpeed;
+	typeAvoidFctr = typeAvoidFctr*simSpeed;
+
 	for (let otherBoid of boids) {
 		boidDist = distance(boid,otherBoid);
 		sameType = (boid.type == otherBoid.type);
@@ -195,8 +203,8 @@ function boidBehaviour(boid){
 		boid.dx += ((avgDX - boid.dx) * typeMtchFctr) + ((centerX - boid.x) * typeCntrFctr);
 		boid.dy += ((avgDY - boid.dy) * typeMtchFctr) + ((centerY - boid.y) * typeCntrFctr);
 	}
-	boid.dx += moveX * typeAvoidFctr;
-	boid.dy += moveY * typeAvoidFctr;
+	boid.dx += moveX * typeAvoidFctr * simSpeed;
+	boid.dy += moveY * typeAvoidFctr * simSpeed;
 	//Speed Limiting
 	const speed = Math.sqrt(boid.dx * boid.dx + boid.dy * boid.dy);
 	if (speed > typeSpdLim/((boid.type+2)/2)) {
@@ -664,10 +672,55 @@ function animationLoop() {
   window.requestAnimationFrame(animationLoop);
 }
 
+// Control panel functions
+function updateSpeed(value) {
+  simSpeed = value / 100;
+  document.getElementById('speedValue').textContent = value + '%';
+}
+
+function updateCount(value) {
+  foishCountMultiplier = parseFloat(value);
+  document.getElementById('countValue').textContent = value + 'x';
+  // Reinitialize boids with new count
+  boids = [];
+  initBoids();
+}
+
+function setupControls() {
+  const speedSlider = document.getElementById('speedSlider');
+  const countSlider = document.getElementById('countSlider');
+  const gearButton = document.getElementById('gearButton');
+  const controlPanel = document.getElementById('controlPanel');
+  
+  speedSlider.addEventListener('input', (e) => {
+    updateSpeed(e.target.value);
+  });
+  
+  countSlider.addEventListener('input', (e) => {
+    updateCount(e.target.value);
+  });
+  
+  gearButton.addEventListener('click', () => {
+    controlPanel.classList.toggle('show');
+  });
+  
+  // Close panel when clicking outside on mobile
+  document.addEventListener('click', (e) => {
+    if (window.innerWidth <= 768) {
+      if (!controlPanel.contains(e.target) && !gearButton.contains(e.target)) {
+        controlPanel.classList.remove('show');
+      }
+    }
+  });
+}
+
 window.onload = () => {
   // Make sure the canvas always fills the whole window
   window.addEventListener("resize", sizeCanvas, false);
   sizeCanvas();
+
+  // Setup control panel
+  setupControls();
 
   //Creates console logs of the current program states.
   logStates();
