@@ -49,6 +49,10 @@ const SHARK_FIN_COLORS = ["#2F4F6D","#27445F","#1E3547"];
 const SHARK_STAGE_SCALES = [0.85, 1.0, 1.25];
 const SHARK_EAT_RATES = [1, 2, 3];
 const SHARK_MEDIUM_EAT_COST = 1.5;
+const SHARK_CLICK_RADIUS = 200;
+const SHARK_HIGHLIGHT_COLOR = "#ff5c5c";
+const SHARK_HIGHLIGHT_WIDTH = 2.5;
+const SHARK_TARGET_RADII = {0: 13, 1: 18};
 const BLOOD_PARTICLE_COUNT = 10;
 const BLOOD_PARTICLE_DECEL = 3;
 const BLOOD_PARTICLE_FADE_RATE = 1.4;
@@ -116,7 +120,7 @@ function createShark(initialStage = 1) {
 		variant: 0,
 		sizeStage: safeStage,
 		fishEaten: 0,
-		target: null,
+		targetBoid: null,
 		eatCharge: SHARK_EAT_RATES[safeStage - 1]
 	};
 	return shark;
@@ -137,6 +141,44 @@ function nClosestBoids(boid, n) {
   sorted.sort((a, b) => distance(boid, a) - distance(boid, b));
   // Return the `n` closest
   return sorted.slice(1, n + 1);
+}
+
+function getSharkStage(shark){
+	return Math.min(Math.max((shark && shark.sizeStage) || 1, 1), SHARK_MAX_STAGE);
+}
+
+function sharkCanEatBoid(shark, prey){
+	if(!shark || !prey){
+		return false;
+	}
+	if(prey.type === 0){
+		return true;
+	}
+	return getSharkStage(shark) === SHARK_MAX_STAGE && prey.type === 1;
+}
+
+function clearSharkTarget(shark){
+	if(shark && shark.targetBoid){
+		if(shark.targetBoid.sharkTarget){
+			shark.targetBoid.sharkTarget = false;
+		}
+		shark.targetBoid = null;
+	}
+}
+
+function setSharkTarget(shark, targetBoid){
+	if(!shark){
+		return;
+	}
+	if(shark.targetBoid && shark.targetBoid !== targetBoid && shark.targetBoid.sharkTarget){
+		shark.targetBoid.sharkTarget = false;
+	}
+	if(targetBoid && sharkCanEatBoid(shark, targetBoid)){
+		shark.targetBoid = targetBoid;
+		targetBoid.sharkTarget = true;
+	} else {
+		clearSharkTarget(shark);
+	}
 }
 
 // Called initially and whenever the window resizes to update the canvas
@@ -210,7 +252,7 @@ function boidBehaviour(boid){
 		const stageScale = 1 + (stage - 1) * 0.25;
 		typeVisRnge = typeVisRnge*1.3;
 		typeSpdLim = typeSpdLim*(1.4 + (stage - 1) * 0.2);
-		typeTurnFctr = typeTurnFctr*1.1;
+		typeTurnFctr = typeTurnFctr*2.5;
 		typeAvoidFctr = typeAvoidFctr*0.9;
 		typeMinDist = typeMinDist*1.1*stageScale;
 		typeMtchFctr = typeMtchFctr*0.05;
@@ -289,17 +331,25 @@ function boidBehaviour(boid){
 	}
 	boid.dx += moveX * typeAvoidFctr * simSpeed;
 	boid.dy += moveY * typeAvoidFctr * simSpeed;
-	if(boid.type == SHARK_TYPE && boid.target){
-		const targetDX = boid.target.x - boid.x;
-		const targetDY = boid.target.y - boid.y;
-		const targetDist = Math.sqrt(targetDX * targetDX + targetDY * targetDY);
-		if(targetDist > 5){
-			const pullStrength = SHARK_TARGET_PULL * simSpeed * (1 + ((boid.sizeStage || 1) - 1) * 0.15);
-			boid.dx += (targetDX / targetDist) * pullStrength;
-			boid.dy += (targetDY / targetDist) * pullStrength;
+	if(boid.type == SHARK_TYPE){
+		let targetBoid = boid.targetBoid;
+		if(targetBoid){
+			const stillPresent = boids.includes(targetBoid);
+			const stillConsumable = sharkCanEatBoid(boid, targetBoid);
+			if(!stillPresent || !stillConsumable){
+				clearSharkTarget(boid);
+				targetBoid = null;
+			}
 		}
-		else{
-			boid.target = null;
+		if(targetBoid){
+			const targetDX = targetBoid.x - boid.x;
+			const targetDY = targetBoid.y - boid.y;
+			const targetDist = Math.sqrt(targetDX * targetDX + targetDY * targetDY);
+			if(targetDist > 1.5){
+				const pullStrength = SHARK_TARGET_PULL * simSpeed * (1 + ((boid.sizeStage || 1) - 1) * 0.15);
+				boid.dx += (targetDX / targetDist) * pullStrength;
+				boid.dy += (targetDY / targetDist) * pullStrength;
+			}
 		}
 	}
 	//Speed Limiting
@@ -805,6 +855,14 @@ function drawBoid(ctx, boid) {
 		ctx.lineTo(boid.x+10, boid.y);
   }
   ctx.fill();
+	if((boid.type === 0 || boid.type === 1) && boid.sharkTarget){
+		const highlightRadius = SHARK_TARGET_RADII[boid.type] || 15;
+		ctx.beginPath();
+		ctx.lineWidth = SHARK_HIGHLIGHT_WIDTH;
+		ctx.strokeStyle = SHARK_HIGHLIGHT_COLOR;
+		ctx.arc(boid.x, boid.y, highlightRadius, 0, Math.PI * 2);
+		ctx.stroke();
+	}
   ctx.setTransform(1/simScaling, 0, 0, 1/simScaling, 0, 0);
 }
 
@@ -909,12 +967,11 @@ function handleSharkFeeding(){
 		const dirY = shark.dy / speed;
 		const headX = shark.x + dirX * headOffset;
 		const headY = shark.y + dirY * headOffset;
-		const canEatMedium = (stageIndex + 1) === SHARK_MAX_STAGE;
 		for(const candidate of boids){
 			if(candidate === shark || fishToRemove.has(candidate)){
 				continue;
 			}
-			if(candidate.type !== 0 && !(canEatMedium && candidate.type === 1)){
+			if(!sharkCanEatBoid(shark, candidate)){
 				continue;
 			}
 			const preyCost = candidate.type === 1 ? SHARK_MEDIUM_EAT_COST : 1;
@@ -927,6 +984,11 @@ function handleSharkFeeding(){
 				shark.eatCharge = Math.max(0, (shark.eatCharge === undefined ? SHARK_EAT_RATES[stageIndex] : shark.eatCharge) - preyCost);
 				shark.fishEaten = (shark.fishEaten || 0) + preyCost;
 				spawnBloodParticles(shark, headX, headY, dirX, dirY);
+				if(shark.targetBoid === candidate){
+					clearSharkTarget(shark);
+				} else if(candidate.sharkTarget){
+					candidate.sharkTarget = false;
+				}
 				checkSharkGrowth(shark);
 			}
 		}
@@ -1048,13 +1110,34 @@ window.onload = () => {
   const canvas = document.getElementById("boids");
   canvas.addEventListener("click", (event) => {
     const rect = canvas.getBoundingClientRect();
-    const targetX = (event.clientX - rect.left) * (canvas.width / rect.width);
-    const targetY = (event.clientY - rect.top) * (canvas.height / rect.height);
-    for (const boid of boids) {
-      if (boid.type === SHARK_TYPE) {
-        boid.target = { x: targetX, y: targetY };
-      }
-    }
+    const clickX = (event.clientX - rect.left) * (canvas.width / rect.width);
+    const clickY = (event.clientY - rect.top) * (canvas.height / rect.height);
+		const sharks = boids.filter(b => b.type === SHARK_TYPE);
+		if(!sharks.length){
+			return;
+		}
+		for(const shark of sharks){
+			let closestTarget = null;
+			let closestDist = SHARK_CLICK_RADIUS;
+			for(const candidate of boids){
+				if(candidate === shark){
+					continue;
+				}
+				if(!sharkCanEatBoid(shark, candidate)){
+					continue;
+				}
+				const distToClick = Math.hypot(candidate.x - clickX, candidate.y - clickY);
+				if(distToClick <= SHARK_CLICK_RADIUS && distToClick < closestDist){
+					closestTarget = candidate;
+					closestDist = distToClick;
+				}
+			}
+			if(closestTarget){
+				setSharkTarget(shark, closestTarget);
+			} else {
+				clearSharkTarget(shark);
+			}
+		}
   });
 
   //Creates console logs of the current program states.
