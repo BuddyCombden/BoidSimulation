@@ -46,6 +46,15 @@ const SHARK_TARGET_PULL = 0.18;
 const SHARK_BODY_COLORS = ["#4C708F","#3A5A7A","#2A4663"];
 const SHARK_BELLY_COLORS = ["#C8D7E2","#BCCAD7","#AEBBCD"];
 const SHARK_FIN_COLORS = ["#2F4F6D","#27445F","#1E3547"];
+const SHARK_STAGE_SCALES = [0.85, 1.0, 1.25];
+const SHARK_EAT_RATES = [1, 2, 3];
+const SHARK_MEDIUM_EAT_COST = 1.5;
+const BLOOD_PARTICLE_COUNT = 10;
+const BLOOD_PARTICLE_DECEL = 3;
+const BLOOD_PARTICLE_FADE_RATE = 1.4;
+const BLOOD_PARTICLE_MIN_ALPHA = 0.05;
+const BLOOD_PARTICLE_COLOR = "rgba(220,35,35,";
+const BLOOD_PARTICLE_BASE_RADIUS = 2;
 const rainbow = {
 	r: 0,
 	g: 0,
@@ -58,6 +67,8 @@ const rainbow = {
 //background: radial-gradient(ellipse at 50% 100%,#e66465 5%, #89CAFF 95%);
 
 var boids = [];
+let bloodParticles = [];
+let lastFrameTime = (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 function logStates(){
 	console.log("Simulation Factors:\nScale: "+simScaling+"\nSpeed: "+simSpeed);
@@ -94,6 +105,7 @@ function initBoids() {
 }
 
 function createShark(initialStage = 1) {
+	const safeStage = Math.min(Math.max(initialStage, 1), SHARK_MAX_STAGE);
 	const shark = {
 		x: Math.random() * width,
 		y: Math.random() * height,
@@ -102,9 +114,10 @@ function createShark(initialStage = 1) {
 		history: [],
 		type: SHARK_TYPE,
 		variant: 0,
-		sizeStage: initialStage,
+		sizeStage: safeStage,
 		fishEaten: 0,
-		target: null
+		target: null,
+		eatCharge: SHARK_EAT_RATES[safeStage - 1]
 	};
 	return shark;
 }
@@ -712,8 +725,7 @@ function drawBoid(ctx, boid) {
   }
   else if(boid.type == SHARK_TYPE){
 		const stage = Math.min(Math.max(boid.sizeStage || 1, 1), SHARK_MAX_STAGE);
-		const scaleFactors = [0.85, 1.0, 1.25];
-		const scale = scaleFactors[stage - 1];
+		const scale = SHARK_STAGE_SCALES[stage - 1];
 		const sized = (value) => value * scale;
 		const bodyColor = SHARK_BODY_COLORS[stage - 1];
 		const bellyColor = SHARK_BELLY_COLORS[stage - 1];
@@ -796,6 +808,85 @@ function drawBoid(ctx, boid) {
   ctx.setTransform(1/simScaling, 0, 0, 1/simScaling, 0, 0);
 }
 
+function updateSharkCooldowns(deltaSeconds){
+	if(!deltaSeconds){
+		return;
+	}
+	for(const boid of boids){
+		if(boid.type !== SHARK_TYPE){
+			continue;
+		}
+		const stageIndex = Math.min(Math.max((boid.sizeStage || 1) - 1, 0), SHARK_MAX_STAGE - 1);
+		const maxCharge = SHARK_EAT_RATES[stageIndex];
+		const rechargeRate = SHARK_EAT_RATES[stageIndex];
+		const currentCharge = (boid.eatCharge === undefined ? maxCharge : boid.eatCharge);
+		const newCharge = Math.min(maxCharge, currentCharge + rechargeRate * deltaSeconds);
+		boid.eatCharge = newCharge;
+	}
+}
+
+function spawnBloodParticles(shark, headX, headY, dirX, dirY){
+	const stageIndex = Math.min(Math.max((shark.sizeStage || 1) - 1, 0), SHARK_MAX_STAGE - 1);
+	const scale = SHARK_STAGE_SCALES[stageIndex];
+	const perpX = -dirY;
+	const perpY = dirX;
+	const mouthSpread = 5 * scale;
+	const baseSpeedX = shark.dx;
+	const baseSpeedY = shark.dy;
+	for(let i = 0; i < BLOOD_PARTICLE_COUNT; i += 1){
+		const side = (i % 2 === 0 ? 1 : -1) * (0.6 + Math.random()*0.4);
+		const offsetFactor = 0.7 + Math.random()*0.6;
+		const posX = headX + perpX * mouthSpread * side * offsetFactor;
+		const posY = headY + perpY * mouthSpread * side * offsetFactor;
+		const jitter = (Math.random() - 0.5) * 3 * scale;
+		const particle = {
+			x: posX,
+			y: posY,
+			dx: baseSpeedX + perpX * jitter * 0.4,
+			dy: baseSpeedY + perpY * jitter * 0.4,
+			alpha: 0.45 + Math.random()*0.3,
+			radius: BLOOD_PARTICLE_BASE_RADIUS * (0.7 + Math.random()*0.6) * scale,
+			life: 0
+		};
+		bloodParticles.push(particle);
+	}
+}
+
+function updateParticles(deltaSeconds){
+	if(!bloodParticles.length || !deltaSeconds){
+		return;
+	}
+	const velocityDecay = Math.exp(-BLOOD_PARTICLE_DECEL * deltaSeconds);
+	for(const particle of bloodParticles){
+		particle.dx *= velocityDecay;
+		particle.dy *= velocityDecay;
+		particle.x += particle.dx;
+		particle.y += particle.dy;
+		particle.life += deltaSeconds;
+		particle.alpha -= BLOOD_PARTICLE_FADE_RATE * deltaSeconds;
+	}
+	bloodParticles = bloodParticles.filter((particle) => {
+		const speed = Math.hypot(particle.dx, particle.dy);
+		return particle.alpha > BLOOD_PARTICLE_MIN_ALPHA || speed > 0.5;
+	});
+}
+
+function drawParticles(ctx){
+	if(!bloodParticles.length){
+		return;
+	}
+	ctx.save();
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	for(const particle of bloodParticles){
+		const alpha = Math.max(0, Math.min(1, particle.alpha));
+		ctx.fillStyle = BLOOD_PARTICLE_COLOR + alpha + ")";
+		ctx.beginPath();
+		ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+		ctx.fill();
+	}
+	ctx.restore();
+}
+
 function handleSharkFeeding(){
 	const sharks = boids.filter(b => b.type === SHARK_TYPE);
 	if(!sharks.length){
@@ -810,18 +901,32 @@ function handleSharkFeeding(){
 		if(speed < 0.01){
 			continue;
 		}
+		const effectiveCharge = (shark.eatCharge === undefined ? SHARK_EAT_RATES[stageIndex] : shark.eatCharge);
+		if(effectiveCharge <= 0){
+			continue;
+		}
 		const dirX = shark.dx / speed;
 		const dirY = shark.dy / speed;
 		const headX = shark.x + dirX * headOffset;
 		const headY = shark.y + dirY * headOffset;
+		const canEatMedium = (stageIndex + 1) === SHARK_MAX_STAGE;
 		for(const candidate of boids){
-			if(candidate === shark || candidate.type !== 0 || fishToRemove.has(candidate)){
+			if(candidate === shark || fishToRemove.has(candidate)){
+				continue;
+			}
+			if(candidate.type !== 0 && !(canEatMedium && candidate.type === 1)){
+				continue;
+			}
+			const preyCost = candidate.type === 1 ? SHARK_MEDIUM_EAT_COST : 1;
+			if((shark.eatCharge === undefined ? SHARK_EAT_RATES[stageIndex] : shark.eatCharge) < preyCost){
 				continue;
 			}
 			const distToHead = Math.hypot(candidate.x - headX, candidate.y - headY);
 			if(distToHead <= headRadius){
 				fishToRemove.add(candidate);
-				shark.fishEaten = (shark.fishEaten || 0) + 1;
+				shark.eatCharge = Math.max(0, (shark.eatCharge === undefined ? SHARK_EAT_RATES[stageIndex] : shark.eatCharge) - preyCost);
+				shark.fishEaten = (shark.fishEaten || 0) + preyCost;
+				spawnBloodParticles(shark, headX, headY, dirX, dirY);
 				checkSharkGrowth(shark);
 			}
 		}
@@ -842,12 +947,18 @@ function checkSharkGrowth(shark){
 	const nextThreshold = SHARK_GROWTH_THRESHOLDS[thresholdIndex];
 	if(shark.fishEaten >= nextThreshold){
 		shark.sizeStage += 1;
+		const stageIndex = Math.min(Math.max(shark.sizeStage - 1, 0), SHARK_MAX_STAGE - 1);
+		const newMaxCharge = SHARK_EAT_RATES[stageIndex];
+		shark.eatCharge = newMaxCharge;
 		console.log("Shark grew to stage " + shark.sizeStage);
 	}
 }
 
 // Main animation loop
 function animationLoop() {
+  const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
+  const deltaSeconds = Math.min(0.25, Math.max(0, (now - lastFrameTime) / 1000));
+  lastFrameTime = now;
   // Update each boid
   for (let boid of boids) {
 	// Update the velocities according to each rule
@@ -867,12 +978,15 @@ function animationLoop() {
 	}
   }
 
+  updateSharkCooldowns(deltaSeconds);
   handleSharkFeeding();
+  updateParticles(deltaSeconds);
 
   // Clear the canvas and redraw all the boids in their current positions
   const ctx = document.getElementById("boids").getContext("2d");
   ctx.clearRect(0, 0, width, height);
 	shiftRainbow(rainbow);
+	drawParticles(ctx);
   for (let boid of boids) {
 	drawBoid(ctx, boid);
   }
@@ -911,15 +1025,15 @@ function setupControls() {
   
   gearButton.addEventListener('click', () => {
     controlPanel.classList.toggle('show');
+    gearButton.classList.toggle('hidden');
   });
   
   // Close panel when clicking outside on mobile
   document.addEventListener('click', (e) => {
-    if (window.innerWidth <= 768) {
-      if (!controlPanel.contains(e.target) && !gearButton.contains(e.target)) {
-        controlPanel.classList.remove('show');
-      }
-    }
+	if (!controlPanel.contains(e.target) && !gearButton.contains(e.target)) {
+		controlPanel.classList.remove('show');
+		gearButton.classList.remove('hidden');
+	}
   });
 }
 
