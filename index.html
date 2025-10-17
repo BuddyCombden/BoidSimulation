@@ -21,11 +21,11 @@
         position: fixed;
         top: 20px;
         left: 20px;
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.25);
         color: white;
-        padding: 20px;
+        padding: 20px 20px 6px 20px;
         border-radius: 10px;
-        backdrop-filter: blur(10px);
+        backdrop-filter: blur(1px);
         border: 1px solid rgba(255, 255, 255, 0.2);
         z-index: 1000;
         min-width: 250px;
@@ -37,6 +37,31 @@
         opacity: 0;
         pointer-events: none;
       }
+
+      .control-panel {
+        transform: translateX(-100%);
+        opacity: 0;
+        pointer-events: none;
+      }
+      
+      .control-panel.show {
+        transform: translateX(0);
+        opacity: 1;
+        pointer-events: all;
+      }
+      
+      .gear-button {
+        display: flex;
+        transform: translateX(0);
+        opacity: 1;
+        pointer-events: all;
+      }
+      
+      .gear-button.hidden {
+        transform: translateX(-100%);
+        opacity: 0;
+        pointer-events: none;
+      }
       
       .gear-button {
         position: fixed;
@@ -44,10 +69,10 @@
         left: 20px;
         width: 50px;
         height: 50px;
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.2);
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 50%;
-        backdrop-filter: blur(10px);
+        backdrop-filter: blur(1px);
         z-index: 1001;
         cursor: pointer;
         display: flex;
@@ -121,7 +146,7 @@
       }
       
       .panel-title {
-        margin: 0 0 15px 0;
+        margin: 0 0 18px 0;
         color: #03C1E3;
         font-size: 18px;
         text-align: center;
@@ -129,37 +154,6 @@
         padding-bottom: 10px;
       }
       
-      /* Mobile styles */
-      @media (max-width: 768px) {
-        .control-panel {
-          transform: translateX(-100%);
-          opacity: 0;
-          pointer-events: none;
-        }
-        
-        .control-panel.show {
-          transform: translateX(0);
-          opacity: 1;
-          pointer-events: all;
-        }
-        
-        .gear-button {
-          display: flex;
-        }
-      }
-      
-      /* Desktop styles */
-      @media (min-width: 769px) {
-        .gear-button {
-          display: none;
-        }
-        
-        .control-panel {
-          transform: translateX(0);
-          opacity: 1;
-          pointer-events: all;
-        }
-      }
     </style>
   </head>
   <body>
