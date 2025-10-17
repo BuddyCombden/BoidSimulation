@@ -15,7 +15,8 @@ let simSpeed = 1*progScale;
 //Foish Count Multiplier
 let foishCountMultiplier = 1.0;
 //Number of Boid Types
-const numTypes = 5;
+const numTypes = 6;
+const SHARK_TYPE = 5;
 
 //Auto adjusts number of boids and their range to better fit scaling.
 let numBoids = 1;
@@ -35,8 +36,16 @@ const matchingFactor = 0.025; // Adjust by this % of average velocity
 const speedLimit = 5;//Boid topspeed
 const turnFactor = 0.5;//Boid turnspeed
 
-const boidColors = ["#282c34d1","#345258d1","#3f353ea1","#6f4472"]
-const trailColors = ["#1097D132","#03C1E336","#4f455516","#6f447636"]
+const boidColors = ["#282c34d1","#345258d1","#3f353ea1","#6f4472","#2F4A20D1","#1B2B5CBB"]
+const trailColors = ["#1097D132","#03C1E336","#4f455516","#6f447636","#68845233","#27408B33"]
+const SHARK_MAX_STAGE = 3;
+const SHARK_GROWTH_THRESHOLDS = [4, 9];
+const SHARK_HEAD_OFFSETS = [16, 20, 24];
+const SHARK_HEAD_RADII = [6, 7, 8];
+const SHARK_TARGET_PULL = 0.18;
+const SHARK_BODY_COLORS = ["#4C708F","#3A5A7A","#2A4663"];
+const SHARK_BELLY_COLORS = ["#C8D7E2","#BCCAD7","#AEBBCD"];
+const SHARK_FIN_COLORS = ["#2F4F6D","#27445F","#1E3547"];
 const rainbow = {
 	r: 0,
 	g: 0,
@@ -78,6 +87,26 @@ function initBoids() {
 		else if(x < boids.length*0.99)boids[x].type = 3;
 		else boids[x].type = 4;
 	}
+	const shark = createShark();
+	if (shark) {
+		boids.push(shark);
+	}
+}
+
+function createShark(initialStage = 1) {
+	const shark = {
+		x: Math.random() * width,
+		y: Math.random() * height,
+		dx: Math.random() * 4 - 2,
+		dy: Math.random() * 4 - 2,
+		history: [],
+		type: SHARK_TYPE,
+		variant: 0,
+		sizeStage: initialStage,
+		fishEaten: 0,
+		target: null
+	};
+	return shark;
 }
 
 function distance(boid1, boid2) {
@@ -163,6 +192,16 @@ function boidBehaviour(boid){
 		typeAvoidFctr = typeAvoidFctr*1;
 		typeTurnFctr = typeTurnFctr*0.7;
 	}
+	else if(boid.type == SHARK_TYPE){//Sharks
+		const stage = boid.sizeStage || 1;
+		const stageScale = 1 + (stage - 1) * 0.25;
+		typeVisRnge = typeVisRnge*1.3;
+		typeSpdLim = typeSpdLim*(1.4 + (stage - 1) * 0.2);
+		typeTurnFctr = typeTurnFctr*1.1;
+		typeAvoidFctr = typeAvoidFctr*0.9;
+		typeMinDist = typeMinDist*1.1*stageScale;
+		typeMtchFctr = typeMtchFctr*0.05;
+	}
 
 	typeSpdLim = typeSpdLim*simSpeed;
 	typeTurnFctr = typeTurnFctr*simSpeed;
@@ -182,6 +221,38 @@ function boidBehaviour(boid){
 				numNeighbors += 1;
 		}}
 		if (otherBoid !== boid) {
+			if(boid.type == SHARK_TYPE && otherBoid.type != SHARK_TYPE){
+				let sharkMinDist = typeMinDist;
+				let sharkSepStrength = 0;
+				if(otherBoid.type == 2 || otherBoid.type == 3){
+					sharkMinDist = typeMinDist*1.5;
+					sharkSepStrength = 2.4;
+				}
+				else if(otherBoid.type == 4){
+					sharkMinDist = typeMinDist*1.1;
+					sharkSepStrength = 1.1;
+				}
+				else{
+					sharkMinDist = typeMinDist*0.4;
+					sharkSepStrength = 0.2;
+				}
+				if(boidDist < sharkMinDist && sharkSepStrength > 0){
+					moveX += (boid.x - otherBoid.x)*sharkSepStrength;
+					moveY += (boid.y - otherBoid.y)*sharkSepStrength;
+				}
+				continue;
+			}
+			if(boid.type == 3 && otherBoid.type == SHARK_TYPE){
+				continue;
+			}
+			if((boid.type == 0 || boid.type == 1) && otherBoid.type == SHARK_TYPE){
+				const panicRange = typeMinDist*1.8;
+				if(boidDist < panicRange){
+					const panicStrength = 2.0;
+					moveX += (boid.x - otherBoid.x)*panicStrength;
+					moveY += (boid.y - otherBoid.y)*panicStrength;
+				}
+			}
 			if(boidDist < typeMinDist){
 				if(typeDiff > 0){
 					moveX += (boid.x - otherBoid.x)*(typeDiff*typeDiff*0.5+0.35);
@@ -205,6 +276,19 @@ function boidBehaviour(boid){
 	}
 	boid.dx += moveX * typeAvoidFctr * simSpeed;
 	boid.dy += moveY * typeAvoidFctr * simSpeed;
+	if(boid.type == SHARK_TYPE && boid.target){
+		const targetDX = boid.target.x - boid.x;
+		const targetDY = boid.target.y - boid.y;
+		const targetDist = Math.sqrt(targetDX * targetDX + targetDY * targetDY);
+		if(targetDist > 5){
+			const pullStrength = SHARK_TARGET_PULL * simSpeed * (1 + ((boid.sizeStage || 1) - 1) * 0.15);
+			boid.dx += (targetDX / targetDist) * pullStrength;
+			boid.dy += (targetDY / targetDist) * pullStrength;
+		}
+		else{
+			boid.target = null;
+		}
+	}
 	//Speed Limiting
 	const speed = Math.sqrt(boid.dx * boid.dx + boid.dy * boid.dy);
 	if (speed > typeSpdLim/((boid.type+2)/2)) {
@@ -508,123 +592,196 @@ function drawBoid(ctx, boid) {
 		if(boid.variant < 2){//Sea Turtle
 			ctx.fillStyle = "#2F4A20D1"; // Green sea turtle
 			// Turtle shell (oval shape)
-			ctx.lineTo(boid.x + 12, boid.y);
-			ctx.lineTo(boid.x + 8, boid.y + 6);
-			ctx.lineTo(boid.x + 2, boid.y + 8);
-			ctx.lineTo(boid.x - 4, boid.y + 8);
-			ctx.lineTo(boid.x - 10, boid.y + 6);
-			ctx.lineTo(boid.x - 14, boid.y + 2);
-			ctx.lineTo(boid.x - 16, boid.y);
-			ctx.lineTo(boid.x - 14, boid.y - 2);
-			ctx.lineTo(boid.x - 10, boid.y - 6);
-			ctx.lineTo(boid.x - 4, boid.y - 8);
-			ctx.lineTo(boid.x + 2, boid.y - 8);
-			ctx.lineTo(boid.x + 8, boid.y - 6);
-			ctx.lineTo(boid.x + 12, boid.y);
+			ctx.lineTo(boid.x + 10, boid.y);
+			ctx.lineTo(boid.x + 7, boid.y + 5);
+			ctx.lineTo(boid.x + 2, boid.y + 6);
+			ctx.lineTo(boid.x - 3, boid.y + 6);
+			ctx.lineTo(boid.x - 8, boid.y + 5);
+			ctx.lineTo(boid.x - 11, boid.y + 2);
+			ctx.lineTo(boid.x - 12, boid.y);
+			ctx.lineTo(boid.x - 11, boid.y - 2);
+			ctx.lineTo(boid.x - 8, boid.y - 5);
+			ctx.lineTo(boid.x - 3, boid.y - 6);
+			ctx.lineTo(boid.x + 2, boid.y - 6);
+			ctx.lineTo(boid.x + 7, boid.y - 5);
+			ctx.lineTo(boid.x + 10, boid.y);
 			ctx.fill();
 			// Head
 			ctx.fillStyle = "#466E2FD1";
 			ctx.beginPath();
-			ctx.moveTo(boid.x + 10, boid.y);
-			ctx.lineTo(boid.x + 15, boid.y + 3);
-			ctx.lineTo(boid.x + 18, boid.y);
-			ctx.lineTo(boid.x + 15, boid.y - 3);
-			ctx.lineTo(boid.x + 10, boid.y);
+			ctx.moveTo(boid.x + 8, boid.y);
+			ctx.lineTo(boid.x + 11, boid.y + 2);
+			ctx.lineTo(boid.x + 14, boid.y);
+			ctx.lineTo(boid.x + 11, boid.y - 2);
+			ctx.lineTo(boid.x + 8, boid.y);
 			ctx.fill();
 			// Flippers
 			// Front left flipper
 			ctx.beginPath();
-			ctx.moveTo(boid.x + 6, boid.y + 5);
-			ctx.lineTo(boid.x + 10, boid.y + 6);
-			ctx.lineTo(boid.x + 12, boid.y + 10);
-			ctx.lineTo(boid.x + 6, boid.y + 7);
-			ctx.lineTo(boid.x + 6, boid.y + 5);
+			ctx.moveTo(boid.x + 5, boid.y + 4);
+			ctx.lineTo(boid.x + 8, boid.y + 5);
+			ctx.lineTo(boid.x + 10, boid.y + 8);
+			ctx.lineTo(boid.x + 5, boid.y + 6);
+			ctx.lineTo(boid.x + 5, boid.y + 4);
 			ctx.fill();
 			// Front right flipper
 			ctx.beginPath();
-			ctx.moveTo(boid.x + 6, boid.y - 5);
-			ctx.lineTo(boid.x + 10, boid.y - 6);
-			ctx.lineTo(boid.x + 12, boid.y - 10);
-			ctx.lineTo(boid.x + 6, boid.y - 7);
-			ctx.lineTo(boid.x + 6, boid.y - 5);
+			ctx.moveTo(boid.x + 5, boid.y - 4);
+			ctx.lineTo(boid.x + 8, boid.y - 5);
+			ctx.lineTo(boid.x + 10, boid.y - 8);
+			ctx.lineTo(boid.x + 5, boid.y - 6);
+			ctx.lineTo(boid.x + 5, boid.y - 4);
 			ctx.fill();
 			// Back left flipper
 			ctx.beginPath();
-			ctx.moveTo(boid.x - 10, boid.y + 5);
-			ctx.lineTo(boid.x - 12, boid.y + 3);
-			ctx.lineTo(boid.x - 14, boid.y + 10);
-			ctx.lineTo(boid.x - 10, boid.y + 7);
-			ctx.lineTo(boid.x - 10, boid.y + 5);
+			ctx.moveTo(boid.x - 8, boid.y + 4);
+			ctx.lineTo(boid.x - 10, boid.y + 2);
+			ctx.lineTo(boid.x - 11, boid.y + 8);
+			ctx.lineTo(boid.x - 8, boid.y + 6);
+			ctx.lineTo(boid.x - 8, boid.y + 4);
 			ctx.fill();
 			// Back right flipper
 			ctx.beginPath();
-			ctx.moveTo(boid.x - 10, boid.y - 5);
-			ctx.lineTo(boid.x - 12, boid.y - 3);
-			ctx.lineTo(boid.x - 14, boid.y - 10);
-			ctx.lineTo(boid.x - 10, boid.y - 7);
-			ctx.lineTo(boid.x - 10, boid.y - 5);
+			ctx.moveTo(boid.x - 8, boid.y - 4);
+			ctx.lineTo(boid.x - 10, boid.y - 2);
+			ctx.lineTo(boid.x - 11, boid.y - 8);
+			ctx.lineTo(boid.x - 8, boid.y - 6);
+			ctx.lineTo(boid.x - 8, boid.y - 4);
 			ctx.fill();
 		}
 		else if(boid.variant >= 2){//Loggerhead Turtle
 			ctx.fillStyle = "#5F4A20D1"; // Brown loggerhead
 			// Turtle shell (oval shape)
-			ctx.lineTo(boid.x + 12, boid.y);
-			ctx.lineTo(boid.x + 8, boid.y + 6);
-			ctx.lineTo(boid.x + 2, boid.y + 8);
-			ctx.lineTo(boid.x - 4, boid.y + 8);
-			ctx.lineTo(boid.x - 10, boid.y + 6);
-			ctx.lineTo(boid.x - 14, boid.y + 2);
-			ctx.lineTo(boid.x - 16, boid.y);
-			ctx.lineTo(boid.x - 14, boid.y - 2);
-			ctx.lineTo(boid.x - 10, boid.y - 6);
-			ctx.lineTo(boid.x - 4, boid.y - 8);
-			ctx.lineTo(boid.x + 2, boid.y - 8);
-			ctx.lineTo(boid.x + 8, boid.y - 6);
-			ctx.lineTo(boid.x + 12, boid.y);
+			ctx.lineTo(boid.x + 10, boid.y);
+			ctx.lineTo(boid.x + 7, boid.y + 5);
+			ctx.lineTo(boid.x + 2, boid.y + 6);
+			ctx.lineTo(boid.x - 3, boid.y + 6);
+			ctx.lineTo(boid.x - 8, boid.y + 5);
+			ctx.lineTo(boid.x - 11, boid.y + 2);
+			ctx.lineTo(boid.x - 12, boid.y);
+			ctx.lineTo(boid.x - 11, boid.y - 2);
+			ctx.lineTo(boid.x - 8, boid.y - 5);
+			ctx.lineTo(boid.x - 3, boid.y - 6);
+			ctx.lineTo(boid.x + 2, boid.y - 6);
+			ctx.lineTo(boid.x + 7, boid.y - 5);
+			ctx.lineTo(boid.x + 10, boid.y);
 			ctx.fill();
 			// Head
 			ctx.fillStyle = "#8B4513d1";
 			ctx.beginPath();
-			ctx.moveTo(boid.x + 10, boid.y);
-			ctx.lineTo(boid.x + 15, boid.y + 3);
-			ctx.lineTo(boid.x + 18, boid.y);
-			ctx.lineTo(boid.x + 15, boid.y - 3);
-			ctx.lineTo(boid.x + 10, boid.y);
+			ctx.moveTo(boid.x + 8, boid.y);
+			ctx.lineTo(boid.x + 11, boid.y + 2);
+			ctx.lineTo(boid.x + 14, boid.y);
+			ctx.lineTo(boid.x + 11, boid.y - 2);
+			ctx.lineTo(boid.x + 8, boid.y);
 			ctx.fill();
 			// Flippers
 			// Front left flipper
 			ctx.beginPath();
-			ctx.moveTo(boid.x + 6, boid.y + 5);
-			ctx.lineTo(boid.x + 10, boid.y + 6);
-			ctx.lineTo(boid.x + 12, boid.y + 10);
-			ctx.lineTo(boid.x + 6, boid.y + 7);
-			ctx.lineTo(boid.x + 6, boid.y + 5);
+			ctx.moveTo(boid.x + 5, boid.y + 4);
+			ctx.lineTo(boid.x + 8, boid.y + 5);
+			ctx.lineTo(boid.x + 10, boid.y + 8);
+			ctx.lineTo(boid.x + 5, boid.y + 6);
+			ctx.lineTo(boid.x + 5, boid.y + 4);
 			ctx.fill();
 			// Front right flipper
 			ctx.beginPath();
-			ctx.moveTo(boid.x + 6, boid.y - 5);
-			ctx.lineTo(boid.x + 10, boid.y - 6);
-			ctx.lineTo(boid.x + 12, boid.y - 10);
-			ctx.lineTo(boid.x + 6, boid.y - 7);
-			ctx.lineTo(boid.x + 6, boid.y - 5);
+			ctx.moveTo(boid.x + 5, boid.y - 4);
+			ctx.lineTo(boid.x + 8, boid.y - 5);
+			ctx.lineTo(boid.x + 10, boid.y - 8);
+			ctx.lineTo(boid.x + 5, boid.y - 6);
+			ctx.lineTo(boid.x + 5, boid.y - 4);
 			ctx.fill();
 			// Back left flipper
 			ctx.beginPath();
-			ctx.moveTo(boid.x - 10, boid.y + 5);
-			ctx.lineTo(boid.x - 12, boid.y + 3);
-			ctx.lineTo(boid.x - 14, boid.y + 10);
-			ctx.lineTo(boid.x - 10, boid.y + 7);
-			ctx.lineTo(boid.x - 10, boid.y + 5);
+			ctx.moveTo(boid.x - 8, boid.y + 4);
+			ctx.lineTo(boid.x - 10, boid.y + 2);
+			ctx.lineTo(boid.x - 11, boid.y + 8);
+			ctx.lineTo(boid.x - 8, boid.y + 6);
+			ctx.lineTo(boid.x - 8, boid.y + 4);
 			ctx.fill();
 			// Back right flipper
 			ctx.beginPath();
-			ctx.moveTo(boid.x - 10, boid.y - 5);
-			ctx.lineTo(boid.x - 12, boid.y - 3);
-			ctx.lineTo(boid.x - 14, boid.y - 10);
-			ctx.lineTo(boid.x - 10, boid.y - 7);
-			ctx.lineTo(boid.x - 10, boid.y - 5);
+			ctx.moveTo(boid.x - 8, boid.y - 4);
+			ctx.lineTo(boid.x - 10, boid.y - 2);
+			ctx.lineTo(boid.x - 11, boid.y - 8);
+			ctx.lineTo(boid.x - 8, boid.y - 6);
+			ctx.lineTo(boid.x - 8, boid.y - 4);
 			ctx.fill();
 		}
+  }
+  else if(boid.type == SHARK_TYPE){
+		const stage = Math.min(Math.max(boid.sizeStage || 1, 1), SHARK_MAX_STAGE);
+		const scaleFactors = [0.85, 1.0, 1.25];
+		const scale = scaleFactors[stage - 1];
+		const sized = (value) => value * scale;
+		const bodyColor = SHARK_BODY_COLORS[stage - 1];
+		const bellyColor = SHARK_BELLY_COLORS[stage - 1];
+		const finColor = SHARK_FIN_COLORS[stage - 1];
+		// Body
+		ctx.beginPath();
+		ctx.fillStyle = bodyColor;
+		ctx.moveTo(boid.x + sized(22), boid.y);
+		ctx.lineTo(boid.x + sized(14), boid.y + sized(4));
+		ctx.lineTo(boid.x + sized(4), boid.y + sized(7));
+		ctx.lineTo(boid.x - sized(4), boid.y + sized(6));
+		ctx.lineTo(boid.x - sized(12), boid.y + sized(3));
+		ctx.lineTo(boid.x - sized(18), boid.y + sized(8));
+		ctx.lineTo(boid.x - sized(22), boid.y + sized(2));
+		ctx.lineTo(boid.x - sized(30), boid.y);
+		ctx.lineTo(boid.x - sized(22), boid.y - sized(2));
+		ctx.lineTo(boid.x - sized(18), boid.y - sized(8));
+		ctx.lineTo(boid.x - sized(12), boid.y - sized(3));
+		ctx.lineTo(boid.x - sized(4), boid.y - sized(6));
+		ctx.lineTo(boid.x + sized(4), boid.y - sized(7));
+		ctx.lineTo(boid.x + sized(14), boid.y - sized(4));
+		ctx.lineTo(boid.x + sized(22), boid.y);
+		ctx.fill();
+		// Belly highlight
+		ctx.beginPath();
+		ctx.fillStyle = bellyColor;
+		ctx.moveTo(boid.x + sized(10), boid.y + sized(1));
+		ctx.lineTo(boid.x + sized(2), boid.y + sized(4));
+		ctx.lineTo(boid.x - sized(6), boid.y + sized(4));
+		ctx.lineTo(boid.x - sized(14), boid.y + sized(2));
+		ctx.lineTo(boid.x - sized(18), boid.y);
+		ctx.lineTo(boid.x - sized(6), boid.y - sized(1));
+		ctx.lineTo(boid.x + sized(2), boid.y - sized(2));
+		ctx.lineTo(boid.x + sized(10), boid.y + sized(1));
+		ctx.fill();
+		// Dorsal fin
+		ctx.beginPath();
+		ctx.fillStyle = finColor;
+		ctx.moveTo(boid.x - sized(2), boid.y - sized(1));
+		ctx.lineTo(boid.x - sized(8), boid.y - sized(13));
+		ctx.lineTo(boid.x + sized(4), boid.y - sized(3));
+		ctx.fill();
+		// Tail fin
+		ctx.beginPath();
+		ctx.moveTo(boid.x - sized(30), boid.y);
+		ctx.lineTo(boid.x - sized(36), boid.y + sized(10));
+		ctx.lineTo(boid.x - sized(28), boid.y + sized(4));
+		ctx.lineTo(boid.x - sized(36), boid.y - sized(10));
+		ctx.lineTo(boid.x - sized(30), boid.y);
+		ctx.fill();
+		// Pectoral fins
+		ctx.beginPath();
+		ctx.moveTo(boid.x - sized(4), boid.y + sized(2));
+		ctx.lineTo(boid.x + sized(4), boid.y + sized(8));
+		ctx.lineTo(boid.x, boid.y + sized(11));
+		ctx.lineTo(boid.x - sized(4), boid.y + sized(4));
+		ctx.fill();
+		ctx.beginPath();
+		ctx.moveTo(boid.x - sized(2), boid.y - sized(1));
+		ctx.lineTo(boid.x + sized(4), boid.y - sized(7));
+		ctx.lineTo(boid.x, boid.y - sized(10));
+		ctx.lineTo(boid.x - sized(4), boid.y - sized(4));
+		ctx.fill();
+		// Eye
+		ctx.fillStyle = "#0E1824";
+		ctx.beginPath();
+		ctx.arc(boid.x + sized(12), boid.y - sized(2), Math.max(1.2, sized(1.4)), 0, Math.PI * 2);
+		ctx.fill();
   }
   else{
 		ctx.fillStyle = "#aaaadaca"
@@ -637,6 +794,56 @@ function drawBoid(ctx, boid) {
   }
   ctx.fill();
   ctx.setTransform(1/simScaling, 0, 0, 1/simScaling, 0, 0);
+}
+
+function handleSharkFeeding(){
+	const sharks = boids.filter(b => b.type === SHARK_TYPE);
+	if(!sharks.length){
+		return;
+	}
+	const fishToRemove = new Set();
+	for(const shark of sharks){
+		const stageIndex = Math.min(Math.max((shark.sizeStage || 1) - 1, 0), SHARK_MAX_STAGE - 1);
+		const headOffset = SHARK_HEAD_OFFSETS[stageIndex];
+		const headRadius = SHARK_HEAD_RADII[stageIndex];
+		const speed = Math.sqrt(shark.dx * shark.dx + shark.dy * shark.dy);
+		if(speed < 0.01){
+			continue;
+		}
+		const dirX = shark.dx / speed;
+		const dirY = shark.dy / speed;
+		const headX = shark.x + dirX * headOffset;
+		const headY = shark.y + dirY * headOffset;
+		for(const candidate of boids){
+			if(candidate === shark || candidate.type !== 0 || fishToRemove.has(candidate)){
+				continue;
+			}
+			const distToHead = Math.hypot(candidate.x - headX, candidate.y - headY);
+			if(distToHead <= headRadius){
+				fishToRemove.add(candidate);
+				shark.fishEaten = (shark.fishEaten || 0) + 1;
+				checkSharkGrowth(shark);
+			}
+		}
+	}
+	if(fishToRemove.size){
+		boids = boids.filter(b => !fishToRemove.has(b));
+	}
+}
+
+function checkSharkGrowth(shark){
+	if(!shark.sizeStage){
+		shark.sizeStage = 1;
+	}
+	if(shark.sizeStage >= SHARK_MAX_STAGE){
+		return;
+	}
+	const thresholdIndex = shark.sizeStage - 1;
+	const nextThreshold = SHARK_GROWTH_THRESHOLDS[thresholdIndex];
+	if(shark.fishEaten >= nextThreshold){
+		shark.sizeStage += 1;
+		console.log("Shark grew to stage " + shark.sizeStage);
+	}
 }
 
 // Main animation loop
@@ -659,6 +866,8 @@ function animationLoop() {
 		boid.history = boid.history.slice(-tailPortion);
 	}
   }
+
+  handleSharkFeeding();
 
   // Clear the canvas and redraw all the boids in their current positions
   const ctx = document.getElementById("boids").getContext("2d");
@@ -721,6 +930,18 @@ window.onload = () => {
 
   // Setup control panel
   setupControls();
+
+  const canvas = document.getElementById("boids");
+  canvas.addEventListener("click", (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const targetX = (event.clientX - rect.left) * (canvas.width / rect.width);
+    const targetY = (event.clientY - rect.top) * (canvas.height / rect.height);
+    for (const boid of boids) {
+      if (boid.type === SHARK_TYPE) {
+        boid.target = { x: targetX, y: targetY };
+      }
+    }
+  });
 
   //Creates console logs of the current program states.
   logStates();
