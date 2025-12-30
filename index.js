@@ -14,7 +14,7 @@ import { Fish } from './Fish.js';
   const app = new Application();
 
   // Initialize the application
-  await app.init({ width: 630, height: 410, antialias: true });
+  await app.init({ width: 1000, height: 900, antialias: true });
 
   // Append the application canvas to the document body
   document.body.appendChild(app.canvas);
@@ -30,6 +30,7 @@ import { Fish } from './Fish.js';
     `https://pixijs.com/assets/pond/displacement_map.png`,
     `https://pixijs.com/assets/pond/displacement_fish1.png`,
     `https://pixijs.com/assets/pond/displacement_fish2.png`,
+    `./icons/gear.svg`,
   ]);
 
   const background = Sprite.from(
@@ -69,10 +70,12 @@ import { Fish } from './Fish.js';
     'Henry',
     'Isabel',
     'Jack',
+    'Gearhead',
   ];
   const textures = [
     Assets.get('https://pixijs.com/assets/pond/displacement_fish1.png'),
     Assets.get('https://pixijs.com/assets/pond/displacement_fish2.png'),
+    Assets.get('./icons/gear.svg'),
   ];
 
   for (let i = 0; i < 10; i++) {
