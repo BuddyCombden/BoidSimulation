@@ -1,0 +1,6 @@
+if using cell based collision checking, selecting a fish could let you see through its eyes/mind, 
+highlighting the cells it is checking, changing color based on danger/crowdedness/eatCharge
+
+if fish are given objectives then that could also show update
+
+
