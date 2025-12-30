@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Undersea View</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&display=swap">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.13.2/pixi.min.js"></script>
+    <script src="./efficient_simulation.js"></script>
+    <style type="text/css">
+      body {
+        margin: 0;
+        background:
+        radial-gradient(ellipse at 50%,#00bfe0 0%,#0077B1 60%,transparent 100%),
+        #033F63;
+        overflow: hidden;
+        font-family: "Inter", Arial, sans-serif;
+      }
+
+      .menu-container {
+        --collapse-speed: 0.3s;
+        --hover-t-duration: 0.2s;
+        position: fixed;
+        top:   0;
+        right: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        z-index: 1000;
+      }
+
+      .menu-container.collapsed .menu-header {
+        width: 56px;
+        border-bottom-left-radius: 4px;
+      }
+
+      .menu-container.collapsed .menu-header .title {
+        padding-left: 0;
+        width: 0;
+      }
+
+      .menu-container.collapsed .menu-body {
+        transform: translateX(100%);
+      }
+
+      .menu-header {
+        display: flex;
+        align-items: center;
+        justify-content: end;
+        width: 100%;
+        padding: 0;
+        border-color: #00bfe0;
+        border-width: 0 0 1px 1px;
+        border-bottom-left-radius: 0px;
+        background: rgba(0,0,0,0.5);
+        box-shadow: 0px 3px 3px #04040440;
+        outline: none;
+        cursor: pointer;
+        transition: 
+          background    var(--hover-t-duration) ease-in-out, 
+          border-color  var(--hover-t-duration) ease-in-out, 
+          width         var(--collapse-speed) ease, 
+          border-radius var(--collapse-speed) ease, 
+          border-width  var(--collapse-speed) ease;
+      }
+
+      .menu-header svg {
+        fill: #00bfe0; 
+        transition: fill var(--hover-t-duration) ease-in-out;
+      }
+
+      .menu-header .title {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-wrap: nowrap;
+        overflow: hidden;
+        padding: 0 0 0 12px;
+        margin: 0;
+        color: #03C1E3;
+        font-size: 18px;
+        transition: 
+          width   var(--collapse-speed) ease-out,
+          padding var(--collapse-speed) ease-out;
+      }
+
+      .menu-header .menu-icon {
+        width:     32px;
+        min-width: 32px;
+        padding:   12px;
+      }
+
+      .menu-header:focus-visible,
+      .menu-header:hover {
+        background: rgba(0,0,0,0.55);
+        border-color: #00d9ff;
+        border-style: dashed;
+        color: #00d9ff;
+      }
+
+      .menu-header:focus-visible svg,
+      .menu-header:hover svg {
+        fill: #00d9ff;
+      }
+
+      .menu-header:active {
+        background: rgba(0,0,0,0.5);
+        border-color: #00b0cf;
+        color: #00b0cf;
+      }
+
+      .menu-header:active svg {
+        fill: #00b0cf;
+      }
+
+      .menu-body {
+        background: rgba(0, 0, 0, 0.25);
+        color: rgba(255, 255, 255, 1);
+        padding: 20px 20px 6px 20px;
+        backdrop-filter: blur(1px);
+        border-color: #00bfe0;
+        border-style: solid;
+        border-width: 0 0 1px 1px;
+        border-bottom-left-radius: 4px;
+        transition: transform var(--collapse-speed) ease-out;
+        box-shadow: 0px 3px 3px #04040440;
+      }
+
+      .menu-body .section {
+        margin-bottom: 15px;
+      }
+
+      .menu-body .section label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+        color: #03C1E3;
+      }
+
+      .menu-body .slider-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .menu-body .slider-container .slider {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: rgb(51, 51, 51, 0.75);
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+
+      .menu-body .slider-container .slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #04040440;
+        cursor: pointer;
+        border: 1px solid #03C1E3;
+      }
+      .menu-body .slider-container .slider:focus::-webkit-slider-thumb {
+        border: 2px solid #00d9ff;
+      }
+
+      .menu-body .slider-container .slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #04040440;
+        cursor: pointer;
+        border: 1px solid #03C1E3;
+      }
+      .menu-body .slider-container .slider:focus::-moz-range-thumb {
+        border: 2px solid #00d9ff;
+      }
+
+      .menu-body .slider-container .value-display {
+        min-width: 50px;
+        text-align: right;
+        font-weight: 600;
+        color: #03C1E3;
+      }
+
+      
+    </style>
+  </head>
+  <body>    
+    
+    <div id="menu" class="menu-container collapsed">
+
+      <!-- Menu Title & Toggle  -->
+      <button id="menuToggle" class="menu-header" onclick="ToggleMenu()">
+        <h3 class="title">Settings & Options</h3>
+        <svg id="menu-open" class="menu-icon"  xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="#00bfe0"><path id="menuIconPath" d="M421-80q-14 0-25-9t-13-23l-15-94q-19-7-40-19t-37-25l-86 40q-14 6-28 1.5T155-226L97-330q-8-13-4.5-27t15.5-23l80-59q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521l-80-59q-12-9-15.5-23t4.5-27l58-104q8-13 22-17.5t28 1.5l86 40q16-13 37-25t40-18l15-95q2-14 13-23t25-9h118q14 0 25 9t13 23l15 94q19 7 40.5 18.5T669-710l86-40q14-6 27.5-1.5T804-734l59 104q8 13 4.5 27.5T852-580l-80 57q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l80 58q12 8 15.5 22.5T863-330l-58 104q-8 13-22 17.5t-28-1.5l-86-40q-16 13-36.5 25.5T592-206l-15 94q-2 14-13 23t-25 9H421Zm15-60h88l14-112q33-8 62.5-25t53.5-41l106 46 40-72-94-69q4-17 6.5-33.5T715-480q0-17-2-33.5t-7-33.5l94-69-40-72-106 46q-23-26-52-43.5T538-708l-14-112h-88l-14 112q-34 7-63.5 24T306-642l-106-46-40 72 94 69q-4 17-6.5 33.5T245-480q0 17 2.5 33.5T254-413l-94 69 40 72 106-46q24 24 53.5 41t62.5 25l14 112Zm44-210q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Zm0-130Z"/></svg>
+      </button>
+      
+      <!-- Settings Menu -->
+      <div class="menu-body">
+        
+        <!-- Simulation Speed -->
+        <div class="section">
+          <label for="speedSlider">Simulation Speed</label>
+          <div class="slider-container">
+            <input type="range" id="speedSlider" class="slider" min="0" max="100" value="100" step="1" suffix="%">
+            <span id="simSpeedValue" class="value-display">100%</span>
+          </div>
+        </div>
+        
+        <!-- Count Multiplier -->
+        <div class="section">
+          <label for="countSlider">Creature Count Multiplier</label>
+          <div class="slider-container">
+            <input type="range" id="countSlider" class="slider" 
+              min="0.1" max="2" value="1" step="0.1" suffix="x">
+            <span id="creatureCountValue" class="value-display">1.0x</span>
+          </div>
+        </div>
+        
+        <!-- Wall Multiplier -->
+        <div class="section">
+          <label for="wallSlider">Containment Walls</label>
+          <div class="slider-container">
+            <input type="range" id="wallSlider" class="slider" 
+              min="0" max="1" value="1" step="0">
+            <span id="wallValue" class="value-display">Active</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+    
+    <!-- Display Canvas -->
+    <canvas id="canvas" width="600" height="400"></canvas>
+
+    <!-- Menu & Canvas Methods -->` 
+    <script>
+      // Size canvas at launch and resize with window
+      const canvas = document.getElementById("canvas")
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      window.addEventListener("resize", ()=>{
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+      });
+
+      // Set up menu state
+      const menu = document.getElementById("menu")
+      const menuToggle = document.getElementById("menuIconPath")
+      let cookie = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("menuCollapsed="))
+          ?.split("=")[1]
+      ToggleMenu((cookie === undefined) ? undefined : (cookie === "false") ? false : true)
+
+      // Toggle menu state
+      function ToggleMenu(setCollapseState=undefined) {
+        if (setCollapseState === undefined) {setCollapseState = !menu.classList.contains("collapsed");}
+        menu.classList.toggle("collapsed", setCollapseState)
+        if (setCollapseState) {//Close Icon
+          menuToggle.setAttribute('d', "M150-240q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h660q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Zm0-210q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h660q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Zm0-210q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h660q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Z")
+        } else {//Menu Icon
+          menuToggle.setAttribute('d', "M480-424 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536-480l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-424Z")
+        }
+        document.cookie = `menuCollapsed=${String(setCollapseState)};path=/;expires=0`;
+      }
+
+    </script>
+  </body>
+</html>
